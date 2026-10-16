@@ -10,6 +10,7 @@ import (
 type FlowQuotaData struct {
 	UserID      int    `json:"user_id,omitempty" gorm:"column:user_id"`
 	Username    string `json:"username,omitempty" gorm:"column:username"`
+	DisplayName string `json:"display_name,omitempty" gorm:"-:migration"`
 	NodeName    string `json:"node_name,omitempty" gorm:"column:node_name"`
 	TokenID     int    `json:"token_id,omitempty" gorm:"column:token_id"`
 	TokenName   string `json:"token_name,omitempty" gorm:"-"`
@@ -35,8 +36,8 @@ func GetFlowQuotaData(startTime int64, endTime int64, username string, userID in
 
 func flowQuotaBaseQuery(startTime int64, endTime int64) *gorm.DB {
 	query := DB.Table("quota_data").
-		Where("use_group <> ''").
-		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+		Where("quota_data.use_group <> ''").
+		Where("quota_data.created_at >= ? and quota_data.created_at <= ?", startTime, endTime)
 	return query
 }
 
@@ -57,12 +58,13 @@ func getSelfFlowQuotaData(startTime int64, endTime int64, userID int) ([]*FlowQu
 func getAdminFlowQuotaData(startTime int64, endTime int64, username string) ([]*FlowQuotaData, error) {
 	rows := make([]*FlowQuotaData, 0)
 	query := flowQuotaBaseQuery(startTime, endTime).
-		Select("user_id, username, use_group, model_name, channel_id, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used")
+		Select("quota_data.user_id, quota_data.username, COALESCE(NULLIF(users.display_name, ''), quota_data.username) as display_name, quota_data.use_group, quota_data.model_name, quota_data.channel_id, sum(quota_data.count) as count, sum(quota_data.quota) as quota, sum(quota_data.token_used) as token_used").
+		Joins("LEFT JOIN users ON users.id = quota_data.user_id")
 	if username != "" {
-		query = query.Where("username = ?", username)
+		query = query.Where("quota_data.username = ?", username)
 	}
 	err := query.
-		Group("user_id, username, use_group, model_name, channel_id").
+		Group("quota_data.user_id, quota_data.username, users.display_name, quota_data.use_group, quota_data.model_name, quota_data.channel_id").
 		Order("quota DESC").
 		Find(&rows).Error
 	if err != nil {
@@ -74,12 +76,13 @@ func getAdminFlowQuotaData(startTime int64, endTime int64, username string) ([]*
 func getRootFlowQuotaData(startTime int64, endTime int64, username string) ([]*FlowQuotaData, error) {
 	rows := make([]*FlowQuotaData, 0)
 	query := flowQuotaBaseQuery(startTime, endTime).
-		Select("user_id, username, node_name, token_id, use_group, model_name, channel_id, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used")
+		Select("quota_data.user_id, quota_data.username, COALESCE(NULLIF(users.display_name, ''), quota_data.username) as display_name, quota_data.node_name, quota_data.token_id, quota_data.use_group, quota_data.model_name, quota_data.channel_id, sum(quota_data.count) as count, sum(quota_data.quota) as quota, sum(quota_data.token_used) as token_used").
+		Joins("LEFT JOIN users ON users.id = quota_data.user_id")
 	if username != "" {
-		query = query.Where("username = ?", username)
+		query = query.Where("quota_data.username = ?", username)
 	}
 	err := query.
-		Group("user_id, username, node_name, token_id, use_group, model_name, channel_id").
+		Group("quota_data.user_id, quota_data.username, users.display_name, quota_data.node_name, quota_data.token_id, quota_data.use_group, quota_data.model_name, quota_data.channel_id").
 		Order("quota DESC").
 		Find(&rows).Error
 	if err != nil {
