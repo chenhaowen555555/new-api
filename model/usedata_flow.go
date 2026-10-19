@@ -10,7 +10,7 @@ import (
 type FlowQuotaData struct {
 	UserID      int    `json:"user_id,omitempty" gorm:"column:user_id"`
 	Username    string `json:"username,omitempty" gorm:"column:username"`
-	DisplayName string `json:"display_name,omitempty" gorm:"-:migration"`
+	DisplayName string `json:"display_name,omitempty" gorm:"->;-:migration"`
 	NodeName    string `json:"node_name,omitempty" gorm:"column:node_name"`
 	TokenID     int    `json:"token_id,omitempty" gorm:"column:token_id"`
 	TokenName   string `json:"token_name,omitempty" gorm:"-"`
@@ -24,11 +24,15 @@ type FlowQuotaData struct {
 }
 
 func GetFlowQuotaData(startTime int64, endTime int64, username string, userID int, role int) ([]*FlowQuotaData, error) {
+	return GetFlowQuotaDataWithScope(startTime, endTime, username, userID, role, nil, false)
+}
+
+func GetFlowQuotaDataWithScope(startTime int64, endTime int64, username string, userID int, role int, visibleUserIDs []int, restricted bool) ([]*FlowQuotaData, error) {
 	switch {
 	case role >= common.RoleRootUser:
-		return getRootFlowQuotaData(startTime, endTime, username)
+		return getRootFlowQuotaData(startTime, endTime, username, visibleUserIDs, restricted)
 	case role >= common.RoleAdminUser:
-		return getAdminFlowQuotaData(startTime, endTime, username)
+		return getAdminFlowQuotaData(startTime, endTime, username, visibleUserIDs, restricted)
 	default:
 		return getSelfFlowQuotaData(startTime, endTime, userID)
 	}
@@ -55,11 +59,12 @@ func getSelfFlowQuotaData(startTime int64, endTime int64, userID int) ([]*FlowQu
 	return rows, fillFlowTokenNames(rows)
 }
 
-func getAdminFlowQuotaData(startTime int64, endTime int64, username string) ([]*FlowQuotaData, error) {
+func getAdminFlowQuotaData(startTime int64, endTime int64, username string, visibleUserIDs []int, restricted bool) ([]*FlowQuotaData, error) {
 	rows := make([]*FlowQuotaData, 0)
 	query := flowQuotaBaseQuery(startTime, endTime).
 		Select("quota_data.user_id, quota_data.username, COALESCE(NULLIF(users.display_name, ''), quota_data.username) as display_name, quota_data.use_group, quota_data.model_name, quota_data.channel_id, sum(quota_data.count) as count, sum(quota_data.quota) as quota, sum(quota_data.token_used) as token_used").
 		Joins("LEFT JOIN users ON users.id = quota_data.user_id")
+	query = applyQuotaDataUserScope(query, visibleUserIDs, restricted)
 	if username != "" {
 		query = query.Where("quota_data.username = ?", username)
 	}
@@ -73,11 +78,12 @@ func getAdminFlowQuotaData(startTime int64, endTime int64, username string) ([]*
 	return rows, fillFlowChannelNames(rows)
 }
 
-func getRootFlowQuotaData(startTime int64, endTime int64, username string) ([]*FlowQuotaData, error) {
+func getRootFlowQuotaData(startTime int64, endTime int64, username string, visibleUserIDs []int, restricted bool) ([]*FlowQuotaData, error) {
 	rows := make([]*FlowQuotaData, 0)
 	query := flowQuotaBaseQuery(startTime, endTime).
 		Select("quota_data.user_id, quota_data.username, COALESCE(NULLIF(users.display_name, ''), quota_data.username) as display_name, quota_data.node_name, quota_data.token_id, quota_data.use_group, quota_data.model_name, quota_data.channel_id, sum(quota_data.count) as count, sum(quota_data.quota) as quota, sum(quota_data.token_used) as token_used").
 		Joins("LEFT JOIN users ON users.id = quota_data.user_id")
+	query = applyQuotaDataUserScope(query, visibleUserIDs, restricted)
 	if username != "" {
 		query = query.Where("quota_data.username = ?", username)
 	}

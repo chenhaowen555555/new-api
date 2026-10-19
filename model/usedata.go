@@ -14,7 +14,7 @@ type QuotaData struct {
 	Id          int    `json:"id"`
 	UserID      int    `json:"user_id" gorm:"index"`
 	Username    string `json:"username" gorm:"index:idx_qdt_model_user_name,priority:2;size:64;default:''"`
-	DisplayName string `json:"display_name,omitempty" gorm:"-:migration"`
+	DisplayName string `json:"display_name,omitempty" gorm:"->;-:migration"`
 	ModelName   string `json:"model_name" gorm:"index:idx_qdt_model_user_name,priority:1;size:64;default:''"`
 	CreatedAt   int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2"`
 	UseGroup    string `json:"use_group" gorm:"index;size:64;default:''"`
@@ -162,24 +162,51 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 }
 
 func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	return GetQuotaDataGroupByUserWithScope(startTime, endTime, nil, false)
+}
+
+func GetQuotaDataGroupByUserWithScope(startTime int64, endTime int64, visibleUserIDs []int, restricted bool) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
-	err = DB.Table("quota_data").
+	query := DB.Table("quota_data").
 		Select("quota_data.username, COALESCE(NULLIF(users.display_name, ''), quota_data.username) as display_name, quota_data.created_at, sum(quota_data.count) as count, sum(quota_data.quota) as quota, sum(quota_data.token_used) as token_used").
 		Joins("LEFT JOIN users ON users.id = quota_data.user_id").
-		Where("quota_data.created_at >= ? and quota_data.created_at <= ?", startTime, endTime).
+		Where("quota_data.created_at >= ? and quota_data.created_at <= ?", startTime, endTime)
+	query = applyQuotaDataUserScope(query, visibleUserIDs, restricted)
+	err = query.
 		Group("quota_data.username, users.display_name, quota_data.created_at").
 		Find(&quotaDatas).Error
 	return quotaDatas, err
 }
 
 func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
-	if username != "" {
-		return GetQuotaDataByUsername(username, startTime, endTime)
-	}
+	return GetAllQuotaDatesWithScope(startTime, endTime, username, nil, false)
+}
+
+func GetAllQuotaDatesWithScope(startTime int64, endTime int64, username string, visibleUserIDs []int, restricted bool) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
-	// 从quota_data表中查询数据
-	// only select model_name, sum(count) as count, sum(quota) as quota, model_name, created_at from quota_data group by model_name, created_at;
-	//err = DB.Table("quota_data").Where("created_at >= ? and created_at <= ?", startTime, endTime).Find(&quotaDatas).Error
-	err = DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime).Group("model_name, created_at").Find(&quotaDatas).Error
+	query := DB.Table("quota_data")
+	if username != "" {
+		query = query.
+			Select("user_id, username, model_name, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
+			Where("username = ? and created_at >= ? and created_at <= ?", username, startTime, endTime)
+		query = applyQuotaDataUserScope(query, visibleUserIDs, restricted)
+		err = query.Group("user_id, username, model_name, created_at").Find(&quotaDatas).Error
+		return quotaDatas, err
+	}
+	query = query.
+		Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").
+		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+	query = applyQuotaDataUserScope(query, visibleUserIDs, restricted)
+	err = query.Group("model_name, created_at").Find(&quotaDatas).Error
 	return quotaDatas, err
+}
+
+func applyQuotaDataUserScope(query *gorm.DB, visibleUserIDs []int, restricted bool) *gorm.DB {
+	if !restricted {
+		return query
+	}
+	if len(visibleUserIDs) == 0 {
+		return query.Where("quota_data.user_id IN ?", []int{-1})
+	}
+	return query.Where("quota_data.user_id IN ?", visibleUserIDs)
 }

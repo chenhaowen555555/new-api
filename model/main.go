@@ -368,6 +368,9 @@ func migrateDB() error {
 		&SystemInstance{},
 		&SystemTask{},
 		&SystemTaskLock{},
+		&DingTalkDepartment{},
+		&DingTalkUserDepartment{},
+		&DepartmentDataPermission{},
 		&CasbinRule{},
 		&AuthzRole{},
 	)

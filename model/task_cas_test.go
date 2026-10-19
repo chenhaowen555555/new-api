@@ -91,6 +91,9 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM system_instances")
 		DB.Exec("DELETE FROM system_task_locks")
 		DB.Exec("DELETE FROM system_tasks")
+		DB.Exec("DELETE FROM department_data_permissions")
+		DB.Exec("DELETE FROM ding_talk_user_departments")
+		DB.Exec("DELETE FROM ding_talk_departments")
 	})
 }
 

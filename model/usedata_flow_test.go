@@ -95,6 +95,7 @@ func TestGetFlowQuotaDataUsesQuotaDataRoleSpecificDimensions(t *testing.T) {
 	require.Equal(t, FlowQuotaData{
 		UserID:      1,
 		Username:    "alice",
+		DisplayName: "alice",
 		NodeName:    "node-a",
 		TokenID:     11,
 		TokenName:   "",

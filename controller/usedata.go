@@ -32,7 +32,12 @@ func GetAllQuotaDates(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	username := c.Query("username")
-	dates, err := model.GetAllQuotaDates(startTimestamp, endTimestamp, username)
+	scope, err := model.DashboardDepartmentScopeForUser(c.GetInt("id"), c.GetString("username"), c.GetInt("role"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	dates, err := model.GetAllQuotaDatesWithScope(startTimestamp, endTimestamp, username, scope.VisibleUserIDs, scope.Restricted)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -48,7 +53,12 @@ func GetAllQuotaDates(c *gin.Context) {
 func GetQuotaDatesByUser(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	dates, err := model.GetQuotaDataGroupByUser(startTimestamp, endTimestamp)
+	scope, err := model.DashboardDepartmentScopeForUser(c.GetInt("id"), c.GetString("username"), c.GetInt("role"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	dates, err := model.GetQuotaDataGroupByUserWithScope(startTimestamp, endTimestamp, scope.VisibleUserIDs, scope.Restricted)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -91,7 +101,12 @@ func GetAllFlowQuotaDates(c *gin.Context) {
 		return
 	}
 	username := c.Query("username")
-	dates, err := model.GetFlowQuotaData(startTimestamp, endTimestamp, username, 0, c.GetInt("role"))
+	scope, err := model.DashboardDepartmentScopeForUser(c.GetInt("id"), c.GetString("username"), c.GetInt("role"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	dates, err := model.GetFlowQuotaDataWithScope(startTimestamp, endTimestamp, username, 0, c.GetInt("role"), scope.VisibleUserIDs, scope.Restricted)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -128,4 +143,61 @@ func GetUserFlowQuotaDates(c *gin.Context) {
 		"data":    dates,
 	})
 	return
+}
+
+func SyncDepartmentDashboardScope(c *gin.Context) {
+	var snapshot model.DepartmentScopeSnapshot
+	if err := c.ShouldBindJSON(&snapshot); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.ReplaceDepartmentScopeSnapshot(snapshot); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"departments":      len(snapshot.Departments),
+			"user_departments": len(snapshot.UserDepartments),
+			"permissions":      len(snapshot.Permissions),
+		},
+	})
+}
+
+func GetDepartmentDashboardScopeDebug(c *gin.Context) {
+	scope, err := model.DashboardDepartmentScopeForUser(c.GetInt("id"), c.GetString("username"), c.GetInt("role"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	type debugUser struct {
+		Id          int    `json:"id"`
+		Username    string `json:"username"`
+		DisplayName string `json:"display_name"`
+		Role        int    `json:"role"`
+		Group       string `json:"group"`
+	}
+	users := make([]debugUser, 0)
+	if len(scope.VisibleUserIDs) > 0 {
+		if err := model.DB.Model(&model.User{}).Select("id, username, display_name, role, \"group\"").Where("id IN ?", scope.VisibleUserIDs).Order("id ASC").Find(&users).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"current_user": gin.H{
+				"id":       c.GetInt("id"),
+				"username": c.GetString("username"),
+				"role":     c.GetInt("role"),
+			},
+			"scope":              scope,
+			"visible_user_count": len(scope.VisibleUserIDs),
+			"visible_users":      users,
+		},
+	})
 }

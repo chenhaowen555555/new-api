@@ -342,6 +342,8 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
+		dataRoute.POST("/department-scope/sync", middleware.RootAuth(), controller.SyncDepartmentDashboardScope)
+		dataRoute.GET("/department-scope/debug", middleware.AdminAuth(), controller.GetDepartmentDashboardScopeDebug)
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
 		{
