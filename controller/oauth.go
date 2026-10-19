@@ -343,6 +343,8 @@ func handleOAuthLogin(c *gin.Context, provider oauth.Provider, oauthUser *oauth.
 		return
 	}
 
+	syncOAuthDingTalkUserGroup(user, oauthUser.ProviderUserID)
+
 	// 8. Check user status
 	if user.Status != common.UserStatusEnabled {
 		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
