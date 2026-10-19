@@ -133,7 +133,7 @@ func DashboardDepartmentScopeForUser(userID int, username string, role int) (Dep
 	if err != nil {
 		return scope, err
 	}
-	if len(departments) > 0 && UserPrimaryGroupHasEnabledChannel(userID) {
+	if len(departments) > 0 {
 		if role >= common.RoleAdminUser && !pilotMatches(userID, username, scope.PilotUsers) {
 			scope.Reason = "not_in_pilot"
 			return scope, nil
@@ -147,20 +147,8 @@ func DashboardDepartmentScopeForUser(userID int, username string, role int) (Dep
 
 	scope.Restricted = true
 	scope.VisibleUserIDs = []int{userID}
-	if len(departments) == 0 {
-		scope.Reason = "self"
-	} else {
-		scope.Reason = "department_scope_no_channel"
-	}
+	scope.Reason = "self"
 	return scope, nil
-}
-
-func UserPrimaryGroupHasEnabledChannel(userID int) bool {
-	var user User
-	if err := DB.Select("id, \"group\"").Where("id = ?", userID).First(&user).Error; err != nil {
-		return false
-	}
-	return groupHasEnabledChannel(user.Group)
 }
 
 func groupHasEnabledChannel(group string) bool {
@@ -238,9 +226,24 @@ func DepartmentManagedVisibleUserIDs(managerUserID int) ([]int, []DingTalkDepart
 		deptByID[dept.DeptID] = dept
 	}
 
+	eligibleDepartments := make([]DingTalkDepartment, 0, len(departments))
+	eligibleDeptIDs := map[int64]struct{}{}
+	for _, dept := range departments {
+		if groupHasEnabledChannel(dept.Path) {
+			eligibleDepartments = append(eligibleDepartments, dept)
+			eligibleDeptIDs[dept.DeptID] = struct{}{}
+		}
+	}
+	if len(eligibleDepartments) == 0 {
+		return []int{}, []DingTalkDepartment{}, nil
+	}
+
 	visible := map[int]struct{}{}
 	for _, perm := range perms {
 		if perm.DeptID <= 0 {
+			continue
+		}
+		if _, ok := eligibleDeptIDs[perm.DeptID]; !ok {
 			continue
 		}
 		query := DB.Model(&DingTalkUserDepartment{}).Where("user_id > 0")
@@ -268,6 +271,6 @@ func DepartmentManagedVisibleUserIDs(managerUserID int) ([]int, []DingTalkDepart
 		ids = append(ids, id)
 	}
 	sort.Ints(ids)
-	sort.Slice(departments, func(i, j int) bool { return departments[i].Path < departments[j].Path })
-	return ids, departments, nil
+	sort.Slice(eligibleDepartments, func(i, j int) bool { return eligibleDepartments[i].Path < eligibleDepartments[j].Path })
+	return ids, eligibleDepartments, nil
 }
