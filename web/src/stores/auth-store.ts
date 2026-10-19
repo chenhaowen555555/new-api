@@ -25,6 +25,8 @@ export type UserPermissions = {
   sidebar_settings?: boolean
   sidebar_modules?: Record<string, unknown>
   admin_permissions?: AdminCapabilities
+  department_dashboard_scope?: boolean
+  department_dashboard_scope_reason?: string
 }
 
 export interface AuthUser {

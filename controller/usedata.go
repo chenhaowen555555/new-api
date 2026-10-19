@@ -101,12 +101,17 @@ func GetAllFlowQuotaDates(c *gin.Context) {
 		return
 	}
 	username := c.Query("username")
-	scope, err := model.DashboardDepartmentScopeForUser(c.GetInt("id"), c.GetString("username"), c.GetInt("role"))
+	role := c.GetInt("role")
+	scope, err := model.DashboardDepartmentScopeForUser(c.GetInt("id"), c.GetString("username"), role)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	dates, err := model.GetFlowQuotaDataWithScope(startTimestamp, endTimestamp, username, 0, c.GetInt("role"), scope.VisibleUserIDs, scope.Restricted)
+	flowRole := role
+	if flowRole < common.RoleAdminUser && scope.Reason == "department_scope" {
+		flowRole = common.RoleAdminUser
+	}
+	dates, err := model.GetFlowQuotaDataWithScope(startTimestamp, endTimestamp, username, 0, flowRole, scope.VisibleUserIDs, scope.Restricted)
 	if err != nil {
 		common.ApiError(c, err)
 		return

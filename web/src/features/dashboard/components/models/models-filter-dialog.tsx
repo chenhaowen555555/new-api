@@ -100,7 +100,10 @@ export function ModelsFilter(props: ModelsFilterProps) {
   const { t } = useTranslation()
   // 使用已缓存的用户数据，避免重复调用 API
   const user = useAuthStore((state) => state.auth.user)
-  const isAdmin = user?.role && user.role >= 10
+  const isAdmin = Boolean(user?.role && user.role >= 10)
+  const canViewTeamDashboard = Boolean(
+    isAdmin || user?.permissions?.department_dashboard_scope
+  )
 
   const [open, setOpen] = useState(false)
   const [filters, setFilters] = useState<DashboardFilters>(
@@ -283,8 +286,8 @@ export function ModelsFilter(props: ModelsFilterProps) {
             </Select>
           </div>
 
-          {/* Admin-only fields */}
-          {isAdmin && (
+          {/* Team dashboard fields */}
+          {canViewTeamDashboard && (
             <>
               <SectionDivider label={t('Admin Only')} />
 

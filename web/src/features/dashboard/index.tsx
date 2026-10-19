@@ -195,7 +195,8 @@ export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const params = route.useParams()
-  const userRole = useAuthStore((state) => state.auth.user?.role)
+  const user = useAuthStore((state) => state.auth.user)
+  const userRole = user?.role
   const activeSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
@@ -245,12 +246,18 @@ export function Dashboard() {
 
   const meta = SECTION_META[activeSection] ?? SECTION_META.overview
   const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
+  const hasDepartmentDashboardScope = Boolean(
+    user?.permissions?.department_dashboard_scope
+  )
+  const canViewTeamDashboard = isAdmin || hasDepartmentDashboardScope
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' &&
+          (section !== 'users' || canViewTeamDashboard)
       ),
-    [isAdmin]
+    [canViewTeamDashboard]
   )
   const handleSectionChange = useCallback(
     (section: string) => {

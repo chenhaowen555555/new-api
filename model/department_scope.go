@@ -128,30 +128,58 @@ func DashboardDepartmentScopeForUser(userID int, username string, role int) (Dep
 		scope.Reason = "root_full_access"
 		return scope, nil
 	}
-	if role < common.RoleAdminUser {
-		scope.Restricted = true
-		scope.Reason = "self"
-		scope.VisibleUserIDs = []int{userID}
-		return scope, nil
-	}
-	if !pilotMatches(userID, username, scope.PilotUsers) {
-		scope.Reason = "not_in_pilot"
-		return scope, nil
-	}
 
 	visibleUserIDs, departments, err := DepartmentManagedVisibleUserIDs(userID)
 	if err != nil {
 		return scope, err
 	}
-	scope.Restricted = true
-	scope.VisibleUserIDs = visibleUserIDs
-	scope.ManagedDepartments = departments
-	if len(departments) == 0 {
-		scope.Reason = "no_department_permission"
-	} else {
+	if len(departments) > 0 && UserPrimaryGroupHasEnabledChannel(userID) {
+		if role >= common.RoleAdminUser && !pilotMatches(userID, username, scope.PilotUsers) {
+			scope.Reason = "not_in_pilot"
+			return scope, nil
+		}
+		scope.Restricted = true
+		scope.VisibleUserIDs = visibleUserIDs
+		scope.ManagedDepartments = departments
 		scope.Reason = "department_scope"
+		return scope, nil
+	}
+
+	scope.Restricted = true
+	scope.VisibleUserIDs = []int{userID}
+	if len(departments) == 0 {
+		scope.Reason = "self"
+	} else {
+		scope.Reason = "department_scope_no_channel"
 	}
 	return scope, nil
+}
+
+func UserPrimaryGroupHasEnabledChannel(userID int) bool {
+	var user User
+	if err := DB.Select("id, \"group\"").Where("id = ?", userID).First(&user).Error; err != nil {
+		return false
+	}
+	return groupHasEnabledChannel(user.Group)
+}
+
+func groupHasEnabledChannel(group string) bool {
+	group = strings.TrimSpace(group)
+	if group == "" {
+		return false
+	}
+	var channelGroups []string
+	if err := DB.Table("channels").Where("status = ?", common.ChannelStatusEnabled).Pluck("\"group\"", &channelGroups).Error; err != nil {
+		return false
+	}
+	for _, raw := range channelGroups {
+		for _, candidate := range strings.Split(raw, ",") {
+			if strings.TrimSpace(candidate) == group {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func ReplaceDepartmentScopeSnapshot(snapshot DepartmentScopeSnapshot) error {

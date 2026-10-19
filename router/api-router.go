@@ -337,13 +337,13 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		dataRoute := apiRouter.Group("/data")
-		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
-		dataRoute.GET("/users", middleware.AdminAuth(), controller.GetQuotaDatesByUser)
+		dataRoute.GET("/", middleware.UserAuth(), controller.GetAllQuotaDates)
+		dataRoute.GET("/users", middleware.UserAuth(), controller.GetQuotaDatesByUser)
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
-		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
+		dataRoute.GET("/flow", middleware.UserAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
 		dataRoute.POST("/department-scope/sync", middleware.RootAuth(), controller.SyncDepartmentDashboardScope)
-		dataRoute.GET("/department-scope/debug", middleware.AdminAuth(), controller.GetDepartmentDashboardScopeDebug)
+		dataRoute.GET("/department-scope/debug", middleware.UserAuth(), controller.GetDepartmentDashboardScopeDebug)
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
 		{

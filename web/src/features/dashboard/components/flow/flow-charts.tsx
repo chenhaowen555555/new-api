@@ -260,10 +260,13 @@ export function FlowCharts(props: FlowChartsProps) {
   const user = useAuthStore((state) => state.auth.user)
   const isRoot = Boolean(user?.role && user.role >= ROLE.SUPER_ADMIN)
   const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
+  const canViewTeamDashboard = Boolean(
+    isAdmin || user?.permissions?.department_dashboard_scope
+  )
   let flowRole: FlowRole = 'user'
   if (isRoot) {
     flowRole = 'root'
-  } else if (isAdmin) {
+  } else if (canViewTeamDashboard) {
     flowRole = 'admin'
   }
   const [metric, setMetric] = useState<FlowMetric>('quota')
@@ -338,7 +341,7 @@ export function FlowCharts(props: FlowChartsProps) {
   } = useQuery({
     queryKey: ['dashboard', 'flow', flowQueryParams, flowRole],
     queryFn: async () =>
-      requireServerSuccess(await getFlowQuotaDates(flowQueryParams, isAdmin)),
+      requireServerSuccess(await getFlowQuotaDates(flowQueryParams, canViewTeamDashboard)),
     select: (res) =>
       requireSuccessfulFlowRows(res, t('Please try again later.')),
     staleTime: 60_000,

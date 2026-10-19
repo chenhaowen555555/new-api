@@ -475,6 +475,10 @@ func GetSelf(c *gin.Context) {
 	// consistent with the authorization decision made for this request.
 	permissions := calculateUserPermissions(userRole)
 	permissions["admin_permissions"] = authz.Capabilities(id, userRole)
+	if scope, err := model.DashboardDepartmentScopeForUser(id, user.Username, userRole); err == nil {
+		permissions["department_dashboard_scope"] = scope.Reason == "department_scope"
+		permissions["department_dashboard_scope_reason"] = scope.Reason
+	}
 	responseData["permissions"] = permissions
 
 	c.JSON(http.StatusOK, gin.H{
@@ -492,6 +496,10 @@ func buildSelfUserData(user *model.User) map[string]any {
 	userSetting := user.GetSetting()
 	permissions := calculateUserPermissions(user.Role)
 	permissions["admin_permissions"] = authz.Capabilities(user.Id, user.Role)
+	if scope, err := model.DashboardDepartmentScopeForUser(user.Id, user.Username, user.Role); err == nil {
+		permissions["department_dashboard_scope"] = scope.Reason == "department_scope"
+		permissions["department_dashboard_scope_reason"] = scope.Reason
+	}
 	return map[string]any{
 		"id":                user.Id,
 		"username":          user.Username,
