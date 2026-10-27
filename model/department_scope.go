@@ -128,16 +128,16 @@ func DashboardDepartmentScopeForUser(userID int, username string, role int) (Dep
 		scope.Reason = "root_full_access"
 		return scope, nil
 	}
+	if role >= common.RoleAdminUser {
+		scope.Reason = "admin_full_access"
+		return scope, nil
+	}
 
 	visibleUserIDs, departments, err := DepartmentManagedVisibleUserIDs(userID)
 	if err != nil {
 		return scope, err
 	}
 	if len(departments) > 0 {
-		if role >= common.RoleAdminUser && !pilotMatches(userID, username, scope.PilotUsers) {
-			scope.Reason = "not_in_pilot"
-			return scope, nil
-		}
 		scope.Restricted = true
 		scope.VisibleUserIDs = visibleUserIDs
 		scope.ManagedDepartments = departments
@@ -157,7 +157,7 @@ func groupHasEnabledChannel(group string) bool {
 		return false
 	}
 	var channelGroups []string
-	if err := DB.Table("channels").Where("status = ?", common.ChannelStatusEnabled).Pluck("\"group\"", &channelGroups).Error; err != nil {
+	if err := DB.Table("channels").Where("status = ?", common.ChannelStatusEnabled).Pluck("group", &channelGroups).Error; err != nil {
 		return false
 	}
 	for _, raw := range channelGroups {
